@@ -2001,6 +2001,9 @@ public:
     bool has_outerclass = Getattr(n, "nested:outer") != 0 && !GetFlag(n, "feature:flatnested");
     SwigType *smart = Swig_cparse_smartptr(n);
 
+    // Generic class type variables.
+    const String *type_vars = typemapLookup(n, "javatypevars", typemap_lookup_type, WARN_NONE);
+
     // Inheritance from pure Java classes
     Node *attributes = NewHash();
     const String *pure_baseclass = typemapLookup(n, "javabase", typemap_lookup_type, WARN_NONE, attributes);
@@ -2078,6 +2081,7 @@ public:
       Printv(proxy_class_def, "static ", NIL); // C++ nested classes correspond to static java classes
     Printv(proxy_class_def, typemapLookup(n, "javaclassmodifiers", typemap_lookup_type, WARN_JAVA_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
 	   " $javaclassname",	// Class name and bases
+	   (*Char(type_vars)) ? type_vars : "",
 	   (*Char(wanted_base)) ? " extends " : "", wanted_base, *Char(interface_list) ?	// Pure Java interfaces
 	   " implements " : "", interface_list, " {", derived ? typemapLookup(n, "javabody_derived", typemap_lookup_type, WARN_JAVA_TYPEMAP_JAVABODY_UNDEF) :	// main body of class
 	   typemapLookup(n, "javabody", typemap_lookup_type, WARN_JAVA_TYPEMAP_JAVABODY_UNDEF),	// main body of class
