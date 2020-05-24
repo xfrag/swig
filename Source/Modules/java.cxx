@@ -2534,6 +2534,9 @@ public:
     Printf(function_code, "  %s ", methodmods);
     if (static_flag)
       Printf(function_code, "static ");
+    const String *method_typevars = Getattr(n, "feature:java:methodtypevars");
+    if (method_typevars)
+      Printf(function_code, "%s ", method_typevars);
     Printf(function_code, "%s %s(", return_type, proxy_function_name);
 
     if (is_interface)
@@ -3082,7 +3085,9 @@ public:
     /* Start generating the function */
     const String *methodmods = Getattr(n, "feature:java:methodmodifiers");
     methodmods = methodmods ? methodmods : (is_public(n) ? public_string : protected_string);
-    Printf(function_code, "  %s static %s %s(", methodmods, return_type, func_name);
+    const String *method_typevars = Getattr(n, "feature:java:methodtypevars");
+    method_typevars = method_typevars ? method_typevars : "";
+    Printf(function_code, "  %s static %s %s %s(", methodmods, method_typevars, return_type, func_name);
     Printv(imcall, imclass_name, ".", overloaded_name, "(", NIL);
 
     /* Get number of required and total arguments */
