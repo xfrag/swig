@@ -22,6 +22,8 @@ typedef DOH UpcallData;
 
 class JAVA:public Language {
   static const char *usage;
+  static const char *ImmutableStructMemberClass;
+  static const char *StructMemberClass;
   const String *empty_string;
   const String *public_string;
   const String *protected_string;
@@ -669,6 +671,9 @@ public:
     Printf(f_wrappers, "}\n");
     Printf(f_wrappers, "#endif\n");
 
+    // Generate the Java member accessor classes.
+    generateMemberAccessorClasses();
+
     // Output a Java type wrapper class for each SWIG type
     for (Iterator swig_type = First(swig_types_hash); swig_type.key; swig_type = Next(swig_type)) {
       emitTypeWrapperClass(swig_type.key, swig_type.item);
@@ -776,6 +781,40 @@ public:
     Delete(f_runtime);
     Delete(f_begin);
     return SWIG_OK;
+  }
+
+  void generateMemberAccessorClasses() {
+    generateMemberAccessorClass("ImmutableStructMember", ImmutableStructMemberClass);
+    generateMemberAccessorClass("StructMember", StructMemberClass);
+  }
+
+  void generateMemberAccessorClass(const char *name, const char *code) {
+
+    File *file = NULL;
+    String *output_directory = outputDirectory(getNSpace());
+    proxy_class_name = NewString(name);
+    String *filen = NewStringf("%s%s.java", output_directory, proxy_class_name);
+
+    file = NewFile(filen, "w", SWIG_output_files());
+    if (!file) {
+      FileErrorDisplay(filen);
+      SWIG_exit(EXIT_FAILURE);
+    }
+
+    Append(filenames_list, Copy(filen));
+    Delete(filen);
+    Delete(proxy_class_name);
+    Delete(output_directory);
+
+    emitBanner(file);
+
+    if (package)
+    	Printf(file, "package %s;\n\n", package);
+
+    Printf(file, code);
+
+    Delete(file);
+
   }
 
   /* -----------------------------------------------------------------------------
@@ -2475,6 +2514,8 @@ public:
     String *post_code = NewString("");
     bool is_interface = Getattr(parentNode(n), "feature:interface") != 0 
       && !static_flag && Getattr(n, "interface:owner") == 0;
+    bool wrapping_member_variable = wrapping_member_flag && !enum_constant_flag;
+    bool immutable = Getattr(n, "feature:immutable") != 0;
 
     if (!proxy_flag)
       return;
@@ -2512,7 +2553,7 @@ public:
       Swig_warning(WARN_JAVA_TYPEMAP_JSTYPE_UNDEF, input_file, line_number, "No jstype typemap defined for %s\n", SwigType_str(t, 0));
     }
 
-    if (wrapping_member_flag && !enum_constant_flag) {
+    if (wrapping_member_variable) {
       // For wrapping member variables (Javabean setter)
       setter_flag = (Cmp(Getattr(n, "sym:name"), Swig_name_set(getNSpace(), Swig_name_member(0, getClassPrefix(), variable_name))) == 0);
     }
@@ -2526,6 +2567,45 @@ public:
       Delete(doxygen_comments);
     }
 
+    if (wrapping_member_variable) {
+      /* TODO: what if the variable type is covariant? */
+      if (setter_flag) {
+
+        /* Determine member variable type from 2nd function argument (the 1st one is 'this') */
+        String *member_tm;
+        Parm *value_parm = CopyParm(nextSibling(l));
+
+        member_tm = Swig_typemap_lookup("jboxtype", value_parm, "", 0);
+        Printf(
+          function_code,
+          "  public final StructMember<%s> %s = new StructMember<>(\n    (",
+          member_tm, variable_name
+        );
+
+        Delete(value_parm);
+
+      } else {
+
+        if (immutable) {
+
+          /* Determine member variable type from function return type. */
+          Node * member_node = copyNode(n);
+          String *member_tm = Swig_typemap_lookup("jboxtype", member_node, "", 0);
+
+          Printf(
+            function_code,
+            "  public final ImmutableStructMember<%s> %s = new ImmutableStructMember<>(\n    (",
+            member_tm, variable_name
+          );
+
+          Delete(member_node);
+
+        } else { Printf(function_code, ",\n    ("); }
+
+      }
+
+    } else {
+
     /* Start generating the proxy function */
     const String *methodmods = Getattr(n, "feature:java:methodmodifiers");
     methodmods = methodmods ? methodmods : (is_public(n) ? public_string : protected_string);
@@ -2536,6 +2616,8 @@ public:
 
     if (is_interface)
       Printf(interface_class_code, "  %s %s(", return_type, proxy_function_name);
+
+    }
 
     Printv(imcall, full_imclass_name, ".$imfuncname(", NIL);
     if (!static_flag) {
@@ -2629,7 +2711,13 @@ public:
 	    Printf(interface_class_code, ", ");
 	}
 	gencomma = 2;
+
+	if (wrapping_member_variable && setter_flag) {
+    Printf(function_code, "%s", arg);
+	} else {
 	Printf(function_code, "%s %s", param_type, arg);
+    }
+
 	if (is_interface)
 	  Printf(interface_class_code, "%s %s", param_type, arg);
 
@@ -2652,7 +2740,12 @@ public:
     }
 
     Printf(imcall, ")");
+
+    if (wrapping_member_variable) {
+    Printf(function_code, ") ->");
+    } else {
     Printf(function_code, ")");
+    }
 
     // Transform return type used in JNI function (in intermediary class) to type used in Java wrapper function (in proxy class)
     if ((tm = Swig_typemap_lookup("javaout", n, "", 0))) {
@@ -2710,13 +2803,20 @@ public:
       Swig_warning(WARN_JAVA_TYPEMAP_JAVAOUT_UNDEF, input_file, line_number, "No javaout typemap defined for %s\n", SwigType_str(t, 0));
     }
 
+    if (wrapping_member_variable) {
+      // Add an extra indentation level to code in typemap when wrapping member variables via Java fields.
+      Replaceall(tm, "\n ", "\n   ");
+      if (!setter_flag) Printf(tm, "\n  );");
+    }
+
     if (is_interface) {
       Printf(interface_class_code, ")");
       generateThrowsClause(n, interface_class_code);
       Printf(interface_class_code, ";\n");
     }
     generateThrowsClause(n, function_code);
-    Printf(function_code, " %s\n\n", tm ? tm : empty_string);
+    Printf(function_code, " %s", tm ? tm : empty_string);
+    if (!(wrapping_member_variable && setter_flag)) Printf(function_code, "\n\n");
     Printv(proxy_class_code, function_code, NIL);
 
     Delete(pre_code);
@@ -5002,3 +5102,33 @@ Java Options (available with -java)\n\
      -oldvarnames    - Old intermediary method names for variable wrappers\n\
      -package <name> - Set name of the Java package to <name>\n\
 \n";
+
+const char *JAVA::ImmutableStructMemberClass = "\
+import java.util.function.Supplier;\n\
+\n\
+public class ImmutableStructMember<T> {\n\
+\n\
+  private final Supplier<T> getter;\n\
+\n\
+  public ImmutableStructMember(Supplier<T> getter) { this.getter = getter; }\n\
+\n\
+  public T get() { return getter.get(); }\n\
+\n\
+}\n";
+
+const char *JAVA::StructMemberClass = "\
+import java.util.function.Consumer;\n\
+import java.util.function.Supplier;\n\
+\n\
+public class StructMember<T> extends ImmutableStructMember<T> {\n\
+\n\
+  private final Consumer<T> setter;\n\
+\n\
+  public StructMember(Consumer<T> setter, Supplier<T> getter) {\n\
+    super(getter);\n\
+    this.setter = setter;\n\
+  }\n\
+\n\
+  public void set(T value) { setter.accept(value); }\n\
+\n\
+}\n";
