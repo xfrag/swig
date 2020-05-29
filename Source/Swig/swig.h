@@ -277,6 +277,7 @@ extern int        ParmList_is_compactdefargs(ParmList *p);
   extern String *Swig_name_member(const_String_or_char_ptr nspace, const_String_or_char_ptr classname, const_String_or_char_ptr membername);
   extern String *Swig_name_get(const_String_or_char_ptr nspace, const_String_or_char_ptr vname);
   extern String *Swig_name_set(const_String_or_char_ptr nspace, const_String_or_char_ptr vname);
+  extern String *Swig_name_address_of(const_String_or_char_ptr nspace, const_String_or_char_ptr vname);
   extern String *Swig_name_construct(const_String_or_char_ptr nspace, const_String_or_char_ptr classname);
   extern String *Swig_name_copyconstructor(const_String_or_char_ptr nspace, const_String_or_char_ptr classname);
   extern String *Swig_name_destroy(const_String_or_char_ptr nspace, const_String_or_char_ptr classname);
@@ -380,6 +381,7 @@ extern int        ParmList_is_compactdefargs(ParmList *p);
   extern int Swig_DestructorToFunction(Node *n, const_String_or_char_ptr nspace, String *classname, int cplus, int flags);
   extern int Swig_MembersetToFunction(Node *n, String *classname, int flags);
   extern int Swig_MembergetToFunction(Node *n, String *classname, int flags);
+  extern int Swig_MemberAddressToFunction(Node *n, String *classname, int flags);
   extern int Swig_VargetToFunction(Node *n, int flags);
   extern int Swig_VarsetToFunction(Node *n, int flags);
 

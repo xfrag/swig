@@ -1424,6 +1424,7 @@ int Language::membervariableHandler(Node *n) {
     String *mname = Swig_name_member(0, ClassPrefix, symname);
     String *mrename_get = Swig_name_get(NSpace, mname);
     String *mrename_set = Swig_name_set(NSpace, mname);
+    String *mrename_address_of = Swig_name_address_of(NSpace, mname);
     Delete(mname);
 
     /* Create a function to set the value of the variable */
@@ -1511,6 +1512,30 @@ int Language::membervariableHandler(Node *n) {
 	  Delattr(n, ki.key);
       }
     }
+
+    if (assignable && !Extend && !SmartPointer && !isNonVirtualProtectedAccess(n)) {
+
+      /* Emit address-of accessor function */
+      Swig_MemberAddressToFunction(n, ClassType, use_naturalvar_mode(n));
+      Setattr(n, "sym:name", mrename_address_of);
+      Setattr(n, "memberaddress", "1");
+      functionWrapper(n);
+
+      /* TODO: almost identical code with a few lines above. */
+      /* Restore parameters */
+      Setattr(n, "type", type);
+      Setattr(n, "name", name);
+      Setattr(n, "sym:name", symname);
+      Delattr(n, "memberaddress");
+
+      /* Delete all attached typemaps and typemap attributes */
+      Iterator ki;
+      for (ki = First(n); ki.key; ki = Next(ki)) {
+      	if (Strncmp(ki.key, "tmap:", 5) == 0) Delattr(n, ki.key);
+      }
+
+    }
+
     /* Emit get function */
     {
       int flags = Extend | SmartPointer | use_naturalvar_mode(n);
@@ -1524,6 +1549,7 @@ int Language::membervariableHandler(Node *n) {
     }
     Delete(mrename_get);
     Delete(mrename_set);
+    Delete(mrename_address_of);
 
   } else {
 

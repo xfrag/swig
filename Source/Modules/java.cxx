@@ -1170,22 +1170,24 @@ public:
      * Not for enums and constants.
      */
     if (proxy_flag && wrapping_member_flag && !enum_constant_flag) {
+
       // Capitalize the first letter in the variable to create a JavaBean type getter/setter function name
-      bool getter_flag = Cmp(symname, Swig_name_set(getNSpace(), Swig_name_member(0, getClassPrefix(), variable_name))) != 0;
-
-      String *getter_setter_name = NewString("");
-      if (!getter_flag)
-	Printf(getter_setter_name, "set");
+      String *accessor_name = NewString("");
+      if (GetFlag(n, "memberset"))
+	    Printf(accessor_name, "set");
+      else if (GetFlag(n, "memberaddress"))
+	    Printf(accessor_name, "addressOf");
       else
-	Printf(getter_setter_name, "get");
-      Putc(toupper((int) *Char(variable_name)), getter_setter_name);
-      Printf(getter_setter_name, "%s", Char(variable_name) + 1);
+	    Printf(accessor_name, "get");
 
-      Setattr(n, "proxyfuncname", getter_setter_name);
+      Putc(toupper((int) *Char(variable_name)), accessor_name);
+      Printf(accessor_name, "%s", Char(variable_name) + 1);
+
+      Setattr(n, "proxyfuncname", accessor_name);
       Setattr(n, "imfuncname", symname);
 
       proxyClassFunctionHandler(n);
-      Delete(getter_setter_name);
+      Delete(accessor_name);
     }
 
     Delete(c_return_type);

@@ -246,6 +246,22 @@ String *Swig_name_set(const_String_or_char_ptr nspace, const_String_or_char_ptr 
   return r;
 }
 
+/* -----------------------------------------------------------------------------
+ * Swig_name_address_of()
+ *
+ * Returns the name of the accessor function used to get the address of a
+ * variable.
+ * ----------------------------------------------------------------------------- */
+
+String *Swig_name_address_of(const_String_or_char_ptr nspace, const_String_or_char_ptr vname) {
+  String *r = get_naming_format_for("address_of", "%n%v_address_of");
+
+  replace_nspace(r, nspace);
+  Replace(r, "%v", vname, DOH_REPLACE_ANY);
+  /* name_mangle(r); */
+  return r;
+}
+
 /* Common implementation of all Swig_name_<special-method>() functions below. */
 static String *make_full_name_for(const char *method, const char *def_format, const_String_or_char_ptr nspace, const_String_or_char_ptr classname) {
   String *r;

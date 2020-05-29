@@ -1541,6 +1541,54 @@ int Swig_MembergetToFunction(Node *n, String *classname, int flags) {
 }
 
 /* -----------------------------------------------------------------------------
+ * Swig_MemberAddressToFunction()
+ *
+ * This function creates a C wrapper for getting the address of a structure
+ * member. Works when wrapping C structs. Not tested with C++ classes,
+ * directors, smart pointers etc.
+ * ----------------------------------------------------------------------------- */
+
+int Swig_MemberAddressToFunction(Node *n, String *classname, int flags) {
+  String *name;
+  ParmList *parms;
+  SwigType *t;
+  SwigType *ty;
+  SwigType *type;
+  String *self = NewString("&(this)->");
+  String *call;
+  String *cres;
+
+  int varcref = flags & CWRAP_NATURAL_VAR;
+
+  name = Getattr(n, "name");
+  type = Getattr(n, "type");
+
+  t = NewString(classname);
+  SwigType_add_pointer(t);
+  parms = NewParm(t, "self", n);
+  Setattr(parms, "self", "1");
+  Setattr(parms, "hidden","1");
+  Delete(t);
+
+  ty = Swig_wrapped_member_var_type(type, varcref);
+  SwigType_add_pointer(ty);
+
+  call = Swig_cmemberget_call(name, type, self, varcref);
+  cres = Swig_cresult(ty, Swig_cresult_name(), call);
+  Setattr(n, "wrap:action", cres);
+  Delete(call);
+  Delete(cres);
+
+  Setattr(n, "type", ty);
+  Setattr(n, "parms", parms);
+  Delete(parms);
+  Delete(ty);
+  Delete(self);
+
+  return SWIG_OK;
+}
+
+/* -----------------------------------------------------------------------------
  * Swig_VarsetToFunction()
  *
  * This function creates a C wrapper for setting a global variable or static member
