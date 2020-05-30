@@ -24,6 +24,7 @@ class JAVA:public Language {
   static const char *usage;
   static const char *ImmutableStructMemberClass;
   static const char *StructMemberClass;
+  static const char *AddressableStructMemberClass;
   const String *empty_string;
   const String *public_string;
   const String *protected_string;
@@ -784,8 +785,11 @@ public:
   }
 
   void generateMemberAccessorClasses() {
+
     generateMemberAccessorClass("ImmutableStructMember", ImmutableStructMemberClass);
     generateMemberAccessorClass("StructMember", StructMemberClass);
+    generateMemberAccessorClass("AddressableStructMember", AddressableStructMemberClass);
+
   }
 
   void generateMemberAccessorClass(const char *name, const char *code) {
@@ -2510,6 +2514,7 @@ public:
     String *return_type = NewString("");
     String *function_code = NewString("");
     bool setter_flag = false;
+    bool getter_flag = false;
     String *pre_code = NewString("");
     String *post_code = NewString("");
     bool is_interface = Getattr(parentNode(n), "feature:interface") != 0 
@@ -2554,8 +2559,9 @@ public:
     }
 
     if (wrapping_member_variable) {
-      // For wrapping member variables (Javabean setter)
-      setter_flag = (Cmp(Getattr(n, "sym:name"), Swig_name_set(getNSpace(), Swig_name_member(0, getClassPrefix(), variable_name))) == 0);
+      // For wrapping member variables (JavaBeans accessors)
+      setter_flag = GetFlag(n, "memberset");
+      getter_flag = GetFlag(n, "memberget");
     }
 
     // Translate and write javadoc comment if flagged
@@ -2573,15 +2579,22 @@ public:
 
         /* Determine member variable type from 2nd function argument (the 1st one is 'this') */
         String *member_tm;
+        String *member_ptr_tm;
         Parm *value_parm = CopyParm(nextSibling(l));
+        Parm *value_parm_ptr = CopyParm(value_parm);
+
+        Setattr(value_parm_ptr, "type", SwigType_add_pointer(Getattr(value_parm_ptr, "type")));
 
         member_tm = Swig_typemap_lookup("jboxtype", value_parm, "", 0);
+        member_ptr_tm = Swig_typemap_lookup("jboxtype", value_parm_ptr, "", 0);
+
         Printf(
           function_code,
-          "  public final StructMember<%s> %s = new StructMember<>(\n    (",
-          member_tm, variable_name
+          "  public final AddressableStructMember<%s, %s> %s = new AddressableStructMember<>(\n    (",
+          member_tm, member_ptr_tm, variable_name
         );
 
+        Delete(value_parm_ptr);
         Delete(value_parm);
 
       } else {
@@ -2806,7 +2819,7 @@ public:
     if (wrapping_member_variable) {
       // Add an extra indentation level to code in typemap when wrapping member variables via Java fields.
       Replaceall(tm, "\n ", "\n   ");
-      if (!setter_flag) Printf(tm, "\n  );");
+      if (getter_flag) Printf(tm, "\n  );");
     }
 
     if (is_interface) {
@@ -2816,7 +2829,7 @@ public:
     }
     generateThrowsClause(n, function_code);
     Printf(function_code, " %s", tm ? tm : empty_string);
-    if (!(wrapping_member_variable && setter_flag)) Printf(function_code, "\n\n");
+    if (!wrapping_member_variable || getter_flag) Printf(function_code, "\n\n");
     Printv(proxy_class_code, function_code, NIL);
 
     Delete(pre_code);
@@ -5130,5 +5143,22 @@ public class StructMember<T> extends ImmutableStructMember<T> {\n\
   }\n\
 \n\
   public void set(T value) { setter.accept(value); }\n\
+\n\
+}\n";
+
+const char *JAVA::AddressableStructMemberClass = "\
+import java.util.function.Consumer;\n\
+import java.util.function.Supplier;\n\
+\n\
+public class AddressableStructMember<T, P> extends StructMember<T> {\n\
+\n\
+  private final Supplier<P> addresser;\n\
+\n\
+  public AddressableStructMember(Consumer<T> setter, Supplier<P> addresser, Supplier<T> getter) {\n\
+    super(setter, getter);\n\
+    this.addresser = addresser;\n\
+  }\n\
+\n\
+  public P addressOf() { return addresser.get(); }\n\
 \n\
 }\n";
